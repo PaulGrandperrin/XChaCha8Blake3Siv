@@ -1,0 +1,12 @@
+[package]
+name = "xchacha20blake3siv"
+version = "0.1.0"
+authors = ["Paul Grandperrin <paul.grandperrin@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+chacha20 = "0.6"
+blake3 = "0.3"
+aead = "0.3"
+zeroize = "1"
+typenum = "1"
