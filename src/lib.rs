@@ -84,22 +84,21 @@ impl Drop for XChaCha20Blake3Siv {
 
 #[cfg(test)]
 mod tests {
-    use aead::{Aead, NewAead};
-
-    use crate::{Key, Nonce, XChaCha20Blake3Siv};
+    use aead::{AeadInPlace, NewAead};
+    use crate::{Key, Nonce, Tag, XChaCha20Blake3Siv};
 
     #[test]
     fn it_works() {
         let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
         let cipher = XChaCha20Blake3Siv::new(key);
-        
         let nonce = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
-        
-        let ciphertext = cipher.encrypt(nonce, b"plaintext message".as_ref())
+        let mut buffer = b"plaintext message".to_owned();
+
+        let tag: Tag = cipher.encrypt_in_place_detached(nonce, b"associated data", &mut buffer)
             .expect("encryption failure!");  // NOTE: handle this error to avoid panics!
-        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref())
+        cipher.decrypt_in_place_detached(nonce, b"associated data", &mut buffer, &tag)
             .expect("decryption failure!");  // NOTE: handle this error to avoid panics!
         
-        assert_eq!(&plaintext, b"plaintext message");
+        assert_eq!(&buffer, b"plaintext message");
     }
 }
