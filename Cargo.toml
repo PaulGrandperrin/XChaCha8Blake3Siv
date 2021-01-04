@@ -5,7 +5,7 @@ authors = ["Paul Grandperrin <paul.grandperrin@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-chacha20 = "0.6"
+c2-chacha = "0.3"
 blake3 = "0.3"
 aead = "0.3"
 zeroize = "1"

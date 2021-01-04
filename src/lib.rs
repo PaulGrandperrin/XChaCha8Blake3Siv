@@ -32,8 +32,9 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 */
 
 use aead::{AeadInPlace, Error, NewAead, consts::{U0, U24, U32}, generic_array::GenericArray};
+use c2_chacha::{XChaCha20, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
 use typenum::Unsigned;
-use chacha20::{XChaCha20, cipher::{NewStreamCipher, SyncStreamCipher}};
+
 use zeroize::Zeroize;
 
 pub type Key = GenericArray<u8, <XChaCha20Blake3Siv as NewAead>::KeySize>;
