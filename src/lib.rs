@@ -17,23 +17,27 @@ We don't perform key separation between the cipher and the PRF because we assume
 
 Pseudocode:
 
-fn encrypt(key:256, iv:192, ad:*, plaintext:*) -> tag:256, ciphertext:*
-  let tag:256 = blake3::keyed_hash(key:256, iv:192 + ad:* + plaintext:*)
-  let siv:192 = tag[0..192]
-  let ciphertext:* = xchacha20(key:256, siv:192, plaintext:*)
+fn encrypt(key:256, iv:256, ad:*, plaintext:*) -> tag:256, ciphertext:*
+  let tag:256 = blake3::keyed_hash(key:256, iv:256 + ad:* + plaintext:*) 
+  let siv = tag
+  let subkey:256, subiv:96 = blake3::keyed_hash(key:256, siv:256)
+  let ciphertext:* = chacha20(subkey:256, subiv:96, plaintext:*)
 
 
-fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
-  let siv:192 = tag[0..192]
-  let plaintext:* = xchacha20(key:256, siv:192, ciphertext:*)
-  let tag2 = blake3::keyed_hash(key:256, iv:192 + ad:* + plaintext:*)
+fn decrypt(key:256, iv:256, tag:256, ad:*, ciphertext:*)
+  let siv = tag
+  let subkey:256, subiv:96 = blake3::keyed_hash(key:256, siv:256)
+  let plaintext:* = chacha20(subkey:256, subiv:96, ciphertext:*)
+  let tag2 = blake3::keyed_hash(key:256, iv:256 + ad:* + plaintext:*)
   assert!(tag == tag2) // constant time
 
 */
 
-use aead::{AeadInPlace, Error, NewAead, consts::{U0, U24, U32}, generic_array::GenericArray};
+use std::mem::MaybeUninit;
+
+use aead::{AeadInPlace, Error, NewAead, consts::{U0, U12, U24, U32}, generic_array::GenericArray};
 use typenum::Unsigned;
-use chacha20::{XChaCha20, cipher::{NewStreamCipher, SyncStreamCipher}};
+use chacha20::{ChaCha20, XChaCha20, cipher::{NewStreamCipher, SyncStreamCipher}};
 use zeroize::Zeroize;
 
 pub type Key = GenericArray<u8, <XChaCha20Blake3Siv as NewAead>::KeySize>;
@@ -53,7 +57,7 @@ impl NewAead for XChaCha20Blake3Siv {
 }
 
 impl AeadInPlace for XChaCha20Blake3Siv {
-    type NonceSize = U24;
+    type NonceSize = U32;
     type TagSize = U32;
     type CiphertextOverhead = U0;
 
@@ -68,11 +72,21 @@ impl AeadInPlace for XChaCha20Blake3Siv {
         hasher.update(associated_data);
         hasher.update(buffer);
         let tag: Tag = Into::<[u8; Self::TagSize::USIZE]>::into(hasher.finalize()).into(); // consumes the Hash to avoid copying
-        let siv: &Nonce = tag.as_slice()[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        XChaCha20::new(&self.key,siv).apply_keystream(buffer);
+        let siv: &Nonce = &tag;
+        
+        let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
+        hasher.update(siv);
+        
+        let mut hash = unsafe {MaybeUninit::<[u8; 44]>::uninit().assume_init()}; // i guess that's UB :/
+        hasher.finalize_xof().fill(&mut hash);
+        
+        let subkey: &GenericArray<u8, U32> = hash.as_ref()[0..32].into();
+        let subiv:  &GenericArray<u8, U12> = hash.as_ref()[32..44].into();
+        
+        ChaCha20::new(subkey,subiv).apply_keystream(buffer);
         Ok(tag)
     }
-
+    
     fn decrypt_in_place_detached(
         &self,
         nonce: &Nonce,
@@ -80,8 +94,18 @@ impl AeadInPlace for XChaCha20Blake3Siv {
         buffer: &mut [u8],
         tag: &Tag,
     ) -> Result<(), Error> {
-        let siv: &Nonce = tag.as_slice()[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        XChaCha20::new(&self.key,siv).apply_keystream(buffer);
+        let siv: &Nonce = &tag;
+
+        let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
+        hasher.update(siv);
+        
+        let mut hash = unsafe {MaybeUninit::<[u8; 44]>::uninit().assume_init()}; // i guess that's UB :/
+        hasher.finalize_xof().fill(&mut hash);
+        
+        let subkey: &GenericArray<u8, U32> = hash.as_ref()[0..32].into();
+        let subiv:  &GenericArray<u8, U12> = hash.as_ref()[32..44].into();
+
+        ChaCha20::new(subkey,subiv).apply_keystream(buffer);
         let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
         hasher.update(nonce);
         hasher.update(associated_data);
@@ -110,7 +134,7 @@ mod tests {
     fn it_works() {
         let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
         let cipher = XChaCha20Blake3Siv::new(key);
-        let nonce = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
+        let nonce = Nonce::from_slice(b"extra extra long unique nonce!!!"); // 32-bytes; unique per message
         let mut buffer = b"plaintext message".to_owned();
 
         let tag: Tag = cipher.encrypt_in_place_detached(nonce, b"associated data", &mut buffer)

@@ -1,10 +1,10 @@
-use aead::{NewAead, AeadInPlace};
+use aead::{AeadInPlace, NewAead, Nonce};
 use chacha20poly1305::XChaCha20Poly1305;
 use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use rand::Rng;
-use xchacha20blake3siv::{Key, Nonce, XChaCha20Blake3Siv};
+use xchacha20blake3siv::{Key, XChaCha20Blake3Siv};
 
 
 fn bench(c: &mut Criterion) {
@@ -14,7 +14,8 @@ fn bench(c: &mut Criterion) {
     rand::thread_rng().fill(&mut buffer[..]);
 
     let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
-    let nonce = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
+    let nonce24 = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
+    let nonce32 = Nonce::from_slice(b"extra extra long unique nonce!!!"); // 32-bytes; unique per message
     let associated_data = b"";
     let cipher_xchacha20blake3siv = XChaCha20Blake3Siv::new(key);
     let cipher_xchacha20poly1305 = XChaCha20Poly1305::new(key);
@@ -25,9 +26,9 @@ fn bench(c: &mut Criterion) {
 
         group_xchacha20blake3siv.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             b.iter(|| {
-                let tag = cipher_xchacha20blake3siv.encrypt_in_place_detached(nonce, associated_data, &mut buffer[0..size])
+                let tag = cipher_xchacha20blake3siv.encrypt_in_place_detached(nonce32, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
-                cipher_xchacha20blake3siv.decrypt_in_place_detached(nonce, associated_data, &mut buffer[0..size], &tag)
+                cipher_xchacha20blake3siv.decrypt_in_place_detached(nonce32, associated_data, &mut buffer[0..size], &tag)
                     .expect("decryption failure!");
             });
         });
@@ -40,9 +41,9 @@ fn bench(c: &mut Criterion) {
 
         group_xchacha20poly1305.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             b.iter(|| {
-                let tag = cipher_xchacha20poly1305.encrypt_in_place_detached(nonce, associated_data, &mut buffer[0..size])
+                let tag = cipher_xchacha20poly1305.encrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
-                cipher_xchacha20poly1305.decrypt_in_place_detached(nonce, associated_data, &mut buffer[0..size], &tag)
+                cipher_xchacha20poly1305.decrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size], &tag)
                     .expect("decryption failure!");
             });
         });
