@@ -10,3 +10,16 @@ blake3 = "0.3"
 aead = "0.3"
 zeroize = "1"
 typenum = "1"
+
+[dev-dependencies]
+rand = "0.8"
+criterion = { version = '0.3', features=['real_blackbox'] } # nightly only
+chacha20poly1305 = "0.7" # to compare against xchacha20poly1305
+
+[[bench]]
+name = "bench"
+harness = false
+
+[profile.release]
+debug = true # for flamegraph
+

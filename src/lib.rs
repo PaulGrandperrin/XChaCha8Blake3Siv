@@ -17,11 +17,11 @@ use typenum::Unsigned;
 use chacha20::cipher::{NewStreamCipher, SyncStreamCipher};
 use zeroize::Zeroize;
 
-type Key = GenericArray<u8, <XChaCha20Blake3Siv as NewAead>::KeySize>;
-type Nonce = GenericArray<u8, <XChaCha20Blake3Siv as AeadInPlace>::NonceSize>;
-type Tag = GenericArray<u8, <XChaCha20Blake3Siv as AeadInPlace>::TagSize>;
+pub type Key = GenericArray<u8, <XChaCha20Blake3Siv as NewAead>::KeySize>;
+pub type Nonce = GenericArray<u8, <XChaCha20Blake3Siv as AeadInPlace>::NonceSize>;
+pub type Tag = GenericArray<u8, <XChaCha20Blake3Siv as AeadInPlace>::TagSize>;
 
-struct XChaCha20Blake3Siv {
+pub struct XChaCha20Blake3Siv {
     key: Key
 }
 
