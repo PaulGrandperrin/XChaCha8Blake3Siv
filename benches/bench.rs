@@ -4,7 +4,7 @@ use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use rand::Rng;
-use xchacha20blake3siv::{Key, XChaCha20Blake3Siv};
+use xchacha8blake3siv::{Key, XChaCha8Blake3Siv};
 
 
 fn bench(c: &mut Criterion) {
@@ -17,23 +17,23 @@ fn bench(c: &mut Criterion) {
     let nonce12 = Nonce::from_slice(b"unique nonce"); // 12-bytes; unique per message
     let nonce24 = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
     let associated_data = b"";
-    let cipher_xchacha20blake3siv = XChaCha20Blake3Siv::new(key);
+    let cipher_xchacha8blake3siv = XChaCha8Blake3Siv::new(key);
     let cipher_chacha20poly1305 = ChaChaPoly1305::<c2_chacha::Ietf>::new(key.into());
 
-    let mut group_xchacha20blake3siv = c.benchmark_group("xchacha20blake3siv");
+    let mut group_xchacha8blake3siv = c.benchmark_group("xchacha8blake3siv");
     for size in [1, 32, 128, 4 * KB, 64 * KB].iter() {
-        group_xchacha20blake3siv.throughput(Throughput::Bytes(*size as u64));
+        group_xchacha8blake3siv.throughput(Throughput::Bytes(*size as u64));
 
-        group_xchacha20blake3siv.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+        group_xchacha8blake3siv.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
             b.iter(|| {
-                let tag = cipher_xchacha20blake3siv.encrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size])
+                let tag = cipher_xchacha8blake3siv.encrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
-                cipher_xchacha20blake3siv.decrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size], &tag)
+                cipher_xchacha8blake3siv.decrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size], &tag)
                     .expect("decryption failure!");
             });
         });
     }
-    group_xchacha20blake3siv.finish();
+    group_xchacha8blake3siv.finish();
 
     let mut group_chacha20poly1305 = c.benchmark_group("chacha20poly1305");
     for size in [1, 32, 128, 4 * KB, 64 * KB].iter() {

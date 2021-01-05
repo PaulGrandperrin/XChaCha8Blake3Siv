@@ -1,11 +1,11 @@
 [package]
-name = "xchacha20blake3siv"
+name = "xchacha8blake3siv"
 version = "0.1.0"
 authors = ["Paul Grandperrin <paul.grandperrin@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-c2-chacha = "0.3"
+c2-chacha = { git = "https://github.com/PaulGrandperrin/cryptocorrosion.git"} # added XChaCha8
 blake3 = "0.3"
 aead = "0.3"
 zeroize = "1"
@@ -14,7 +14,7 @@ typenum = "1"
 [dev-dependencies]
 rand = "0.8"
 criterion = { version = '0.3', features=['real_blackbox'] } # nightly only
-chacha20poly1305 = "0.7" # to compare against xchacha20poly1305
+chacha20poly1305 = "0.7" # to compare against chacha20poly1305
 
 [[bench]]
 name = "bench"
