@@ -1,5 +1,5 @@
 /*
-XChaCha8Blake3Siv is a nonce-reuse misuse-resistant (NRMR) and key-commiting authenticated encryption with associated data (AEAD) algorithm .
+XChaCha8Blake3Siv is a nonce-reuse misuse-resistant (NRMR) and key-committing authenticated encryption with associated data (AEAD) algorithm .
 
 XChaCha8Blake3Siv can also be used as a deterministic authenticated encryption (DAE) key-commiting AEAD.
 
@@ -13,8 +13,11 @@ and so no padding oracle attack is possible.
 We don't perform key separation between the cipher and the PRF because even though xchacha8 and blake3 are related in design, they are
 seeded different compression IV constants which makes them domain separated.
 
+We choose the lower round XChaCha8 instead of XChaCha20 based on [2] 
+
 0: https://datatracker.ietf.org/doc/draft-madden-generalised-siv/
 1: https://www.usenix.org/conference/usenixsecurity21/presentation/len
+2: https://eprint.iacr.org/2019/1492.pdf
 
 Pseudocode:
 

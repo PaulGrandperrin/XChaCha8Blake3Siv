@@ -10,7 +10,7 @@ use xchacha8blake3siv::{Key, XChaCha8Blake3Siv};
 fn bench(c: &mut Criterion) {
     const KB: usize = 1024;
 
-    let mut buffer = vec![0u8; 64 * KB];
+    let mut buffer = vec![0u8; 1024 * KB];
     rand::thread_rng().fill(&mut buffer[..]);
 
     let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
@@ -21,10 +21,10 @@ fn bench(c: &mut Criterion) {
     let cipher_chacha20poly1305 = ChaChaPoly1305::<c2_chacha::Ietf>::new(key.into());
 
     let mut group_xchacha8blake3siv = c.benchmark_group("xchacha8blake3siv");
-    for size in [1, 32, 128, 4 * KB, 64 * KB].iter() {
+    for size in [1, 32, 128, 4 * KB, 64 * KB, 1024 * KB].iter() {
         group_xchacha8blake3siv.throughput(Throughput::Bytes(*size as u64));
 
-        group_xchacha8blake3siv.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+        group_xchacha8blake3siv.bench_with_input(BenchmarkId::from_parameter(format!("{: >8}", size)), size, |b, &size| {
             b.iter(|| {
                 let tag = cipher_xchacha8blake3siv.encrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
@@ -36,10 +36,10 @@ fn bench(c: &mut Criterion) {
     group_xchacha8blake3siv.finish();
 
     let mut group_chacha20poly1305 = c.benchmark_group("chacha20poly1305");
-    for size in [1, 32, 128, 4 * KB, 64 * KB].iter() {
+    for size in [1, 32, 128, 4 * KB, 64 * KB, 1024 * KB].iter() {
         group_chacha20poly1305.throughput(Throughput::Bytes(*size as u64));
 
-        group_chacha20poly1305.bench_with_input(BenchmarkId::from_parameter(size), size, |b, &size| {
+        group_chacha20poly1305.bench_with_input(BenchmarkId::from_parameter(format!("{: >8}", size)), size, |b, &size| {
             b.iter(|| {
                 let tag = cipher_chacha20poly1305.encrypt_in_place_detached(nonce12, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
