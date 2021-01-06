@@ -44,16 +44,22 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 use std::convert::TryInto;
 
 use aead::{AeadInPlace, Error, NewAead, consts::{U0, U32}, generic_array::GenericArray};
-use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
+use c2_chacha::{ChaCha12, ChaCha20, ChaCha8, XChaCha12, XChaCha20, XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
 use typenum::Unsigned;
 
 use zeroize::Zeroize;
 
-pub type Key = GenericArray<u8, <XChaCha8Blake3Siv as NewAead>::KeySize>;
-pub type Nonce = GenericArray<u8, <XChaCha8Blake3Siv as AeadInPlace>::NonceSize>;
-pub type Tag = GenericArray<u8, <XChaCha8Blake3Siv as AeadInPlace>::TagSize>;
+pub type Key<A> = GenericArray<u8, <A as NewAead>::KeySize>;
+pub type Nonce<A> = GenericArray<u8, <A as AeadInPlace>::NonceSize>;
+pub type Tag<A> = GenericArray<u8, <A as AeadInPlace>::TagSize>;
+
+pub type ChaCha8Blake3Siv = CipherBlake3Siv<ChaCha8>;
+pub type ChaCha12Blake3Siv = CipherBlake3Siv<ChaCha12>;
+pub type ChaCha20Blake3Siv = CipherBlake3Siv<ChaCha20>;
 
 pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8>;
+pub type XChaCha12Blake3Siv = CipherBlake3Siv<XChaCha12>;
+pub type XChaCha20Blake3Siv = CipherBlake3Siv<XChaCha20>;
 
 pub struct CipherBlake3Siv<C: NewStreamCipher> {
     key: GenericArray<u8, <C as NewStreamCipher>::KeySize>
