@@ -45,7 +45,7 @@ use std::convert::TryInto;
 
 use aead::{AeadInPlace, Error, NewAead, consts::{U0, U32}, generic_array::GenericArray};
 use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
-use typenum::{IsEqual, True, Unsigned};
+use typenum::Unsigned;
 
 use zeroize::Zeroize;
 
@@ -55,14 +55,12 @@ pub type Tag = GenericArray<u8, <XChaCha8Blake3Siv as AeadInPlace>::TagSize>;
 
 pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8>;
 
-pub struct CipherBlake3Siv<C: NewStreamCipher>
-where C::KeySize: IsEqual<U32, Output = True> {
+pub struct CipherBlake3Siv<C: NewStreamCipher> {
     key: GenericArray<u8, <C as NewStreamCipher>::KeySize>
 }
 
 impl<C: NewStreamCipher> NewAead for CipherBlake3Siv<C>
-where   C::KeySize: IsEqual<U32, Output = True>,
-        GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
+where GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
     type KeySize = <C as NewStreamCipher>::KeySize;
 
     fn new(key: &GenericArray<u8, <C as NewStreamCipher>::KeySize>) -> Self {
@@ -70,8 +68,7 @@ where   C::KeySize: IsEqual<U32, Output = True>,
     }
 }
 
-impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C>
-where C::KeySize: IsEqual<U32, Output = True> {
+impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C> {
     type NonceSize = <C as NewStreamCipher>::NonceSize;
     type TagSize = U32;
     type CiphertextOverhead = U0;
@@ -116,8 +113,7 @@ where C::KeySize: IsEqual<U32, Output = True> {
     }
 }
 
-impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C>
-where C::KeySize: IsEqual<U32, Output = True> {
+impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C> {
     fn drop(&mut self) {
         self.key.as_mut_slice().zeroize();
     }
