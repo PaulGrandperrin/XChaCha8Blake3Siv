@@ -1,10 +1,10 @@
-use aead::{AeadInPlace, NewAead, Nonce};
+use aead::{AeadInPlace, Key, NewAead, Nonce};
 use chacha20poly1305::ChaChaPoly1305;
 use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use rand::Rng;
-use xchacha8blake3siv::{Key, XChaCha8Blake3Siv};
+use xchacha8blake3siv::XChaCha8Blake3Siv;
 
 
 fn bench(c: &mut Criterion) {
@@ -13,7 +13,7 @@ fn bench(c: &mut Criterion) {
     let mut buffer = vec![0u8; 1024 * KB];
     rand::thread_rng().fill(&mut buffer[..]);
 
-    let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
+    let key = Key::<XChaCha8Blake3Siv>::from_slice(b"an example very very secret key."); // 32-bytes
     let nonce12 = Nonce::from_slice(b"unique nonce"); // 12-bytes; unique per message
     let nonce24 = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
     let associated_data = b"";

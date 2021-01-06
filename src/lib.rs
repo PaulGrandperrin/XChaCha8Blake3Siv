@@ -42,16 +42,11 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 */
 
 use std::convert::TryInto;
-
 use aead::{AeadInPlace, Error, NewAead, consts::{U0, U32}, generic_array::GenericArray};
 use c2_chacha::{ChaCha12, ChaCha20, ChaCha8, XChaCha12, XChaCha20, XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
 use typenum::Unsigned;
-
 use zeroize::Zeroize;
 
-pub type Key<A> = GenericArray<u8, <A as NewAead>::KeySize>;
-pub type Nonce<A> = GenericArray<u8, <A as AeadInPlace>::NonceSize>;
-pub type Tag<A> = GenericArray<u8, <A as AeadInPlace>::TagSize>;
 
 pub type ChaCha8Blake3Siv = CipherBlake3Siv<ChaCha8>;
 pub type ChaCha12Blake3Siv = CipherBlake3Siv<ChaCha12>;
@@ -127,17 +122,17 @@ impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C> {
 
 #[cfg(test)]
 mod tests {
-    use aead::{AeadInPlace, NewAead};
-    use crate::{Key, Nonce, Tag, XChaCha8Blake3Siv};
-
+    use aead::{AeadInPlace, Key, NewAead, Nonce};
+    use crate::XChaCha8Blake3Siv;
+    
     #[test]
     fn it_works() {
-        let key = Key::from_slice(b"an example very very secret key."); // 32-bytes
+        let key = Key::<XChaCha8Blake3Siv>::from_slice(b"an example very very secret key."); // 32-bytes
         let cipher = XChaCha8Blake3Siv::new(key);
         let nonce = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
         let mut buffer = b"plaintext message".to_owned();
 
-        let tag: Tag = cipher.encrypt_in_place_detached(nonce, b"associated data", &mut buffer)
+        let tag = cipher.encrypt_in_place_detached(nonce, b"associated data", &mut buffer)
             .expect("encryption failure!");  // NOTE: handle this error to avoid panics!
         cipher.decrypt_in_place_detached(nonce, b"associated data", &mut buffer, &tag)
             .expect("decryption failure!");  // NOTE: handle this error to avoid panics!
