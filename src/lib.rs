@@ -41,9 +41,11 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 
 */
 
-use aead::{AeadInPlace, Error, NewAead, consts::{U0, U24, U32}, generic_array::GenericArray};
+use std::convert::TryInto;
+
+use aead::{AeadInPlace, Error, NewAead, consts::{U0, U32}, generic_array::GenericArray};
 use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
-use typenum::Unsigned;
+use typenum::{IsEqual, True, Unsigned};
 
 use zeroize::Zeroize;
 
@@ -51,56 +53,62 @@ pub type Key = GenericArray<u8, <XChaCha8Blake3Siv as NewAead>::KeySize>;
 pub type Nonce = GenericArray<u8, <XChaCha8Blake3Siv as AeadInPlace>::NonceSize>;
 pub type Tag = GenericArray<u8, <XChaCha8Blake3Siv as AeadInPlace>::TagSize>;
 
-pub struct XChaCha8Blake3Siv {
-    key: Key
+pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8>;
+
+pub struct CipherBlake3Siv<C: NewStreamCipher>
+where C::KeySize: IsEqual<U32, Output = True> {
+    key: GenericArray<u8, <C as NewStreamCipher>::KeySize>
 }
 
-impl NewAead for XChaCha8Blake3Siv {
-    type KeySize = U32;
+impl<C: NewStreamCipher> NewAead for CipherBlake3Siv<C>
+where   C::KeySize: IsEqual<U32, Output = True>,
+        GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
+    type KeySize = <C as NewStreamCipher>::KeySize;
 
-    fn new(key: &Key) -> Self {
-        XChaCha8Blake3Siv { key: *key }
+    fn new(key: &GenericArray<u8, <C as NewStreamCipher>::KeySize>) -> Self {
+        CipherBlake3Siv { key: *key }
     }
 }
 
-impl AeadInPlace for XChaCha8Blake3Siv {
-    type NonceSize = U24;
+impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C>
+where C::KeySize: IsEqual<U32, Output = True> {
+    type NonceSize = <C as NewStreamCipher>::NonceSize;
     type TagSize = U32;
     type CiphertextOverhead = U0;
 
     fn encrypt_in_place_detached(
         &self,
-        nonce: &Nonce,
+        nonce: &GenericArray<u8, <C as NewStreamCipher>::NonceSize>,
         associated_data: &[u8],
         buffer: &mut [u8],
-    ) -> Result<Tag, Error> {
-        let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
+    ) -> Result<GenericArray<u8, Self::TagSize>, Error> {
+        let mut hasher = blake3::Hasher::new_keyed(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
         hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
-        let tag: Tag = Into::<[u8; Self::TagSize::USIZE]>::into(hasher.finalize()).into(); // consumes the Hash to avoid copying
-        let siv: &Nonce = tag.as_slice()[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        XChaCha8::new(&self.key,siv).apply_keystream(buffer);
+        let tag: GenericArray<_,_> = Into::<[u8; U32::USIZE]>::into(hasher.finalize()).into(); // consumes the Hash to avoid copying
+        let siv= tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
+        <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
         Ok(tag)
     }
 
     fn decrypt_in_place_detached(
         &self,
-        nonce: &Nonce,
+        nonce: &GenericArray<u8, <C as NewStreamCipher>::NonceSize>,
         associated_data: &[u8],
         buffer: &mut [u8],
-        tag: &Tag,
+        tag: &GenericArray<u8, Self::TagSize>,
     ) -> Result<(), Error> {
-        let siv: &Nonce = tag.as_slice()[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        XChaCha8::new(&self.key,siv).apply_keystream(buffer);
-        let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
+        let siv = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
+        <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
+        let mut hasher = blake3::Hasher::new_keyed(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
         hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
         let hash = hasher.finalize();
-        if hash.eq(tag.as_ref() as &[u8; Self::TagSize::USIZE]) { // the PartialEq implementation of blake3::Hash executes in constant time
+        if hash.eq(tag.as_ref() as &[u8; U32::USIZE]) { // the PartialEq implementation of blake3::Hash executes in constant time
             Ok(())
         } else {
             Err(Error)
@@ -108,7 +116,8 @@ impl AeadInPlace for XChaCha8Blake3Siv {
     }
 }
 
-impl Drop for XChaCha8Blake3Siv {
+impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C>
+where C::KeySize: IsEqual<U32, Output = True> {
     fn drop(&mut self) {
         self.key.as_mut_slice().zeroize();
     }
