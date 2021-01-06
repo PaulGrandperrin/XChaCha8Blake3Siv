@@ -5,7 +5,9 @@ XChaCha8Blake3Siv can also be used as a deterministic authenticated encryption (
 
 XChaCha8Blake3Siv is inspired by the generic Synthetic Initialization Vector (SIV) construction described in [0].
 
-We assume XChaCha8Blake3Siv is key-commiting and therefore resistant to partitioning oracle attacks based on our understanding of [1].
+Blake3 is collision-resistant therefore XChaCha8Blake3Siv is key-commiting and therefore resistant to partitioning oracle attacks based ([1] and [2]).
+
+Blake3 being a PRF, it's output is indistinguishable from a random function and therefore can safely be used for generating the SIV.
 
 We believe that using the Mac-then-Encrypt (MtE) is secure because we are not using a block cipher, so there is no padding
 and so no padding oracle attack is possible.
@@ -13,16 +15,20 @@ and so no padding oracle attack is possible.
 We don't perform key separation between the cipher and the PRF because even though xchacha8 and blake3 are related in design, they are
 seeded different compression IV constants which makes them domain separated.
 
-We choose the lower round XChaCha8 instead of XChaCha20 based on [2] 
+We encode the associated data length in the tag/siv to prevent encoding ambiguities with the plaintext.
+We do not encode the plaintext length because blake3 is secure to length extention.
+
+We choose the lower round XChaCha8 instead of XChaCha20 based on [3] 
 
 0: https://datatracker.ietf.org/doc/draft-madden-generalised-siv/
 1: https://www.usenix.org/conference/usenixsecurity21/presentation/len
-2: https://eprint.iacr.org/2019/1492.pdf
+2: https://eprint.iacr.org/2020/1153
+3: https://eprint.iacr.org/2019/1492
 
 Pseudocode:
 
 fn encrypt(key:256, iv:192, ad:*, plaintext:*) -> tag:256, ciphertext:*
-  let tag:256 = blake3::keyed_hash(key:256, iv:192 + ad:* + plaintext:*)
+  let tag:256 = blake3::keyed_hash(key:256, iv:192 + len(ad):64 + ad:* + plaintext:*)
   let siv:192 = tag[0..192]
   let ciphertext:* = xchacha8(key:256, siv:192, plaintext:*)
 
@@ -30,7 +36,7 @@ fn encrypt(key:256, iv:192, ad:*, plaintext:*) -> tag:256, ciphertext:*
 fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
   let siv:192 = tag[0..192]
   let plaintext:* = xchacha8(key:256, siv:192, ciphertext:*)
-  let tag2 = blake3::keyed_hash(key:256, iv:192 + ad:* + plaintext:*)
+  let tag2 = blake3::keyed_hash(key:256, iv:192 + len(ad):64 + ad:* + plaintext:*)
   assert!(tag == tag2) // constant time
 
 */
@@ -70,6 +76,7 @@ impl AeadInPlace for XChaCha8Blake3Siv {
     ) -> Result<Tag, Error> {
         let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
         hasher.update(nonce);
+        hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
         let tag: Tag = Into::<[u8; Self::TagSize::USIZE]>::into(hasher.finalize()).into(); // consumes the Hash to avoid copying
@@ -89,6 +96,7 @@ impl AeadInPlace for XChaCha8Blake3Siv {
         XChaCha8::new(&self.key,siv).apply_keystream(buffer);
         let mut hasher = blake3::Hasher::new_keyed(self.key.as_ref());
         hasher.update(nonce);
+        hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
         let hash = hasher.finalize();
