@@ -41,37 +41,39 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 
 */
 
-use std::convert::TryInto;
-use aead::{AeadInPlace, Error, NewAead, consts::{U0, U32}, generic_array::GenericArray};
+use std::{convert::TryInto, marker::PhantomData};
+use aead::{AeadInPlace, Error, NewAead, consts::{U0}, generic_array::GenericArray};
 use c2_chacha::{ChaCha12, ChaCha20, ChaCha8, XChaCha12, XChaCha20, XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
+use crypto_mac::{Mac, NewMac};
 use typenum::Unsigned;
 use zeroize::Zeroize;
 
 
-pub type ChaCha8Blake3Siv = CipherBlake3Siv<ChaCha8>;
-pub type ChaCha12Blake3Siv = CipherBlake3Siv<ChaCha12>;
-pub type ChaCha20Blake3Siv = CipherBlake3Siv<ChaCha20>;
+pub type ChaCha8Blake3Siv = CipherBlake3Siv<ChaCha8, blake3::Hasher>;
+pub type ChaCha12Blake3Siv = CipherBlake3Siv<ChaCha12, blake3::Hasher>;
+pub type ChaCha20Blake3Siv = CipherBlake3Siv<ChaCha20, blake3::Hasher>;
 
-pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8>;
-pub type XChaCha12Blake3Siv = CipherBlake3Siv<XChaCha12>;
-pub type XChaCha20Blake3Siv = CipherBlake3Siv<XChaCha20>;
+pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8, blake3::Hasher>;
+pub type XChaCha12Blake3Siv = CipherBlake3Siv<XChaCha12, blake3::Hasher>;
+pub type XChaCha20Blake3Siv = CipherBlake3Siv<XChaCha20, blake3::Hasher>;
 
-pub struct CipherBlake3Siv<C: NewStreamCipher> {
-    key: GenericArray<u8, <C as NewStreamCipher>::KeySize>
+pub struct CipherBlake3Siv<C: NewStreamCipher, M> {
+    key: GenericArray<u8, <C as NewStreamCipher>::KeySize>,
+    _phantom: PhantomData<M>,
 }
 
-impl<C: NewStreamCipher> NewAead for CipherBlake3Siv<C>
+impl<C: NewStreamCipher, M> NewAead for CipherBlake3Siv<C, M>
 where GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
     type KeySize = <C as NewStreamCipher>::KeySize;
 
     fn new(key: &GenericArray<u8, <C as NewStreamCipher>::KeySize>) -> Self {
-        CipherBlake3Siv { key: *key }
+        CipherBlake3Siv { key: *key, _phantom: PhantomData }
     }
 }
 
-impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C> {
+impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for CipherBlake3Siv<C, M> {
     type NonceSize = <C as NewStreamCipher>::NonceSize;
-    type TagSize = U32;
+    type TagSize = <M as Mac>::OutputSize;
     type CiphertextOverhead = U0;
 
     fn encrypt_in_place_detached(
@@ -80,12 +82,12 @@ impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C> {
         associated_data: &[u8],
         buffer: &mut [u8],
     ) -> Result<GenericArray<u8, Self::TagSize>, Error> {
-        let mut hasher = blake3::Hasher::new_keyed(self.key.as_slice().try_into().unwrap());
+        let mut hasher = <M as NewMac>::new(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
         hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
-        let tag: GenericArray<_,_> = Into::<[u8; U32::USIZE]>::into(hasher.finalize()).into(); // consumes the Hash to avoid copying
+        let tag: GenericArray<_,_> = hasher.finalize().into_bytes(); // consumes the Hash to avoid copying
         let siv= tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
         <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
         Ok(tag)
@@ -100,13 +102,13 @@ impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C> {
     ) -> Result<(), Error> {
         let siv = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
         <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
-        let mut hasher = blake3::Hasher::new_keyed(self.key.as_slice().try_into().unwrap());
+        let mut hasher = <M as NewMac>::new(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
         hasher.update(&(associated_data.len() as u64).to_le_bytes());
         hasher.update(associated_data);
         hasher.update(buffer);
-        let hash = hasher.finalize();
-        if hash.eq(tag.as_ref() as &[u8; U32::USIZE]) { // the PartialEq implementation of blake3::Hash executes in constant time
+        let hash = hasher.finalize().into_bytes();
+        if hash.eq(tag) { // the PartialEq implementation of blake3::Hash executes in constant time
             Ok(())
         } else {
             Err(Error)
@@ -114,7 +116,7 @@ impl<C: NewStreamCipher + SyncStreamCipher> AeadInPlace for CipherBlake3Siv<C> {
     }
 }
 
-impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C> {
+impl<C: NewStreamCipher, M> Drop for CipherBlake3Siv<C, M> {
     fn drop(&mut self) {
         self.key.as_mut_slice().zeroize();
     }
@@ -124,7 +126,7 @@ impl<C: NewStreamCipher> Drop for CipherBlake3Siv<C> {
 mod tests {
     use aead::{AeadInPlace, Key, NewAead, Nonce};
     use crate::XChaCha8Blake3Siv;
-    
+
     #[test]
     fn it_works() {
         let key = Key::<XChaCha8Blake3Siv>::from_slice(b"an example very very secret key."); // 32-bytes
