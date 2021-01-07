@@ -108,7 +108,7 @@ impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for Aea
         hasher.update(associated_data);
         hasher.update(buffer);
         let hash = hasher.finalize().into_bytes();
-        if hash.eq(tag) { // the PartialEq implementation of blake3::Hash executes in constant time
+        if subtle::ConstantTimeEq::ct_eq(hash.as_slice(), tag).unwrap_u8() == 1 { // constant time to avoid timing attack
             Ok(())
         } else {
             Err(Error)
