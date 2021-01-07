@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 c2-chacha = { git = "https://github.com/PaulGrandperrin/cryptocorrosion.git"} # added 8 and 12 round versions
 # chacha20 = {git = "https://github.com/RustCrypto/stream-ciphers.git"} # added 8 and 12 round versions
-blake3 = { path = "../BLAKE3" }
+blake3 = { git = "https://github.com/PaulGrandperrin/BLAKE3.git", branch = "xor_and_crypto_mac_0.10" }
 aead = "0.3"
 zeroize = "1"
 typenum = "1"
