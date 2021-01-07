@@ -49,29 +49,29 @@ use typenum::Unsigned;
 use zeroize::Zeroize;
 
 
-pub type ChaCha8Blake3Siv = CipherBlake3Siv<ChaCha8, blake3::Hasher>;
-pub type ChaCha12Blake3Siv = CipherBlake3Siv<ChaCha12, blake3::Hasher>;
-pub type ChaCha20Blake3Siv = CipherBlake3Siv<ChaCha20, blake3::Hasher>;
+pub type ChaCha8Blake3Siv = AeadSiv<ChaCha8, blake3::Hasher>;
+pub type ChaCha12Blake3Siv = AeadSiv<ChaCha12, blake3::Hasher>;
+pub type ChaCha20Blake3Siv = AeadSiv<ChaCha20, blake3::Hasher>;
 
-pub type XChaCha8Blake3Siv = CipherBlake3Siv<XChaCha8, blake3::Hasher>;
-pub type XChaCha12Blake3Siv = CipherBlake3Siv<XChaCha12, blake3::Hasher>;
-pub type XChaCha20Blake3Siv = CipherBlake3Siv<XChaCha20, blake3::Hasher>;
+pub type XChaCha8Blake3Siv = AeadSiv<XChaCha8, blake3::Hasher>;
+pub type XChaCha12Blake3Siv = AeadSiv<XChaCha12, blake3::Hasher>;
+pub type XChaCha20Blake3Siv = AeadSiv<XChaCha20, blake3::Hasher>;
 
-pub struct CipherBlake3Siv<C: NewStreamCipher, M> {
+pub struct AeadSiv<C: NewStreamCipher, M> {
     key: GenericArray<u8, <C as NewStreamCipher>::KeySize>,
     _phantom: PhantomData<M>,
 }
 
-impl<C: NewStreamCipher, M> NewAead for CipherBlake3Siv<C, M>
+impl<C: NewStreamCipher, M> NewAead for AeadSiv<C, M>
 where GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
     type KeySize = <C as NewStreamCipher>::KeySize;
 
     fn new(key: &GenericArray<u8, <C as NewStreamCipher>::KeySize>) -> Self {
-        CipherBlake3Siv { key: *key, _phantom: PhantomData }
+        AeadSiv { key: *key, _phantom: PhantomData }
     }
 }
 
-impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for CipherBlake3Siv<C, M> {
+impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv<C, M> {
     type NonceSize = <C as NewStreamCipher>::NonceSize;
     type TagSize = <M as Mac>::OutputSize;
     type CiphertextOverhead = U0;
@@ -116,7 +116,7 @@ impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for Cip
     }
 }
 
-impl<C: NewStreamCipher, M> Drop for CipherBlake3Siv<C, M> {
+impl<C: NewStreamCipher, M> Drop for AeadSiv<C, M> {
     fn drop(&mut self) {
         self.key.as_mut_slice().zeroize();
     }
