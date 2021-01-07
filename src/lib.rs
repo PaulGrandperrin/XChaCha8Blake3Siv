@@ -43,19 +43,12 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 
 use std::{convert::TryInto, marker::PhantomData};
 use aead::{AeadInPlace, Error, NewAead, consts::{U0}, generic_array::GenericArray};
-use c2_chacha::{ChaCha12, ChaCha20, ChaCha8, XChaCha12, XChaCha20, XChaCha8, stream_cipher::{NewStreamCipher, SyncStreamCipher}};
+use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, StreamCipher}};
 use crypto_mac::{Mac, NewMac};
 use typenum::Unsigned;
 use zeroize::Zeroize;
 
-
-pub type ChaCha8Blake3Siv = AeadSiv<ChaCha8, blake3::Hasher>;
-pub type ChaCha12Blake3Siv = AeadSiv<ChaCha12, blake3::Hasher>;
-pub type ChaCha20Blake3Siv = AeadSiv<ChaCha20, blake3::Hasher>;
-
 pub type XChaCha8Blake3Siv = AeadSiv<XChaCha8, blake3::Hasher>;
-pub type XChaCha12Blake3Siv = AeadSiv<XChaCha12, blake3::Hasher>;
-pub type XChaCha20Blake3Siv = AeadSiv<XChaCha20, blake3::Hasher>;
 
 pub struct AeadSiv<C: NewStreamCipher, M> {
     key: GenericArray<u8, <C as NewStreamCipher>::KeySize>,
@@ -71,7 +64,7 @@ where GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
     }
 }
 
-impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv<C, M> {
+impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv<C, M> {
     type NonceSize = <C as NewStreamCipher>::NonceSize;
     type TagSize = <M as Mac>::OutputSize;
     type CiphertextOverhead = U0;
@@ -89,7 +82,7 @@ impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for Aea
         hasher.update(buffer);
         let tag: GenericArray<_,_> = hasher.finalize().into_bytes(); // consumes the Hash to avoid copying
         let siv= tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
+        <C as NewStreamCipher>::new(&self.key,siv).encrypt(buffer);
         Ok(tag)
     }
 
@@ -101,7 +94,7 @@ impl<C: NewStreamCipher + SyncStreamCipher, M: NewMac + Mac> AeadInPlace for Aea
         tag: &GenericArray<u8, Self::TagSize>,
     ) -> Result<(), Error> {
         let siv = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
-        <C as NewStreamCipher>::new(&self.key,siv).apply_keystream(buffer);
+        <C as NewStreamCipher>::new(&self.key,siv).decrypt(buffer);
         let mut hasher = <M as NewMac>::new(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
         hasher.update(&(associated_data.len() as u64).to_le_bytes());

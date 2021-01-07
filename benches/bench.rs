@@ -1,55 +1,50 @@
 use aead::{AeadInPlace, Key, NewAead, Nonce};
-use chacha20poly1305::ChaChaPoly1305;
+use chacha20poly1305::{ChaChaPoly1305, XChaCha20Poly1305};
 use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use rand::Rng;
-use xchacha8blake3siv::XChaCha8Blake3Siv;
+use xchacha8blake3siv::AeadSiv;
+use typenum::Unsigned;
 
+const KB: usize = 1024;
+const MB: usize = 1024 * KB;
 
-fn bench(c: &mut Criterion) {
-    const KB: usize = 1024;
-
-    let mut buffer = vec![0u8; 1024 * KB];
+fn bench_aead<A: NewAead + AeadInPlace>(c: &mut Criterion, name: &str) {
+    let mut buffer = vec![0u8; MB];
     rand::thread_rng().fill(&mut buffer[..]);
 
-    let key = Key::<XChaCha8Blake3Siv>::from_slice(b"an example very very secret key."); // 32-bytes
-    let nonce12 = Nonce::from_slice(b"unique nonce"); // 12-bytes; unique per message
-    let nonce24 = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
+    let key = Key::<A>::clone_from_slice(&buffer[0..<A as NewAead>::KeySize::USIZE]);
+    let nonce = Nonce::clone_from_slice(&buffer[0..<A as AeadInPlace>::NonceSize::USIZE]);
     let associated_data = b"";
-    let cipher_xchacha8blake3siv = XChaCha8Blake3Siv::new(key);
-    let cipher_chacha20poly1305 = ChaChaPoly1305::<c2_chacha::Ietf>::new(key.into());
+    let aead = <A as NewAead>::new(&key);
 
-    let mut group_xchacha8blake3siv = c.benchmark_group("xchacha8blake3siv");
-    for size in [1, 32, 128, 4 * KB, 64 * KB, 1024 * KB].iter() {
-        group_xchacha8blake3siv.throughput(Throughput::Bytes(*size as u64));
+    let mut group = c.benchmark_group(name);
+    for size in [1, 32, 128, KB, 8 * KB, 64 * KB, MB].iter() {
+        group.throughput(Throughput::Bytes(*size as u64));
 
-        group_xchacha8blake3siv.bench_with_input(BenchmarkId::from_parameter(format!("{: >8}", size)), size, |b, &size| {
+        group.bench_with_input(BenchmarkId::from_parameter(format!("{: >8}", size)), size, |b, &size| {
             b.iter(|| {
-                let tag = cipher_xchacha8blake3siv.encrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size])
+                let tag = aead.encrypt_in_place_detached(&nonce, associated_data, &mut buffer[0..size])
                 .   expect("encryption failure!");
-                cipher_xchacha8blake3siv.decrypt_in_place_detached(nonce24, associated_data, &mut buffer[0..size], &tag)
+                aead.decrypt_in_place_detached(&nonce, associated_data, &mut buffer[0..size], &tag)
                     .expect("decryption failure!");
             });
         });
     }
-    group_xchacha8blake3siv.finish();
+    group.finish();
+}
 
-    let mut group_chacha20poly1305 = c.benchmark_group("chacha20poly1305");
-    for size in [1, 32, 128, 4 * KB, 64 * KB, 1024 * KB].iter() {
-        group_chacha20poly1305.throughput(Throughput::Bytes(*size as u64));
-
-        group_chacha20poly1305.bench_with_input(BenchmarkId::from_parameter(format!("{: >8}", size)), size, |b, &size| {
-            b.iter(|| {
-                let tag = cipher_chacha20poly1305.encrypt_in_place_detached(nonce12, associated_data, &mut buffer[0..size])
-                .   expect("encryption failure!");
-                cipher_chacha20poly1305.decrypt_in_place_detached(nonce12, associated_data, &mut buffer[0..size], &tag)
-                    .expect("decryption failure!");
-            });
-        });
-    }
-    group_chacha20poly1305.finish();
-
+fn bench(c: &mut Criterion) {
+    bench_aead::<XChaCha20Poly1305>(c, "XChaCha20Poly1305");
+    bench_aead::<ChaChaPoly1305<c2_chacha::Ietf>>(c, "ChaChaPoly1305<c2_chacha::Ietf>");
+    bench_aead::<AeadSiv<c2_chacha::Ietf, blake3::Hasher>>(c, "c2_chacha::Ietf, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::ChaCha8, blake3::Hasher>>(c, "c2_chacha::ChaCha8, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::ChaCha12, blake3::Hasher>>(c, "c2_chacha::ChaCha12, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::ChaCha20, blake3::Hasher>>(c, "c2_chacha::ChaCha20, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::XChaCha8, blake3::Hasher>>(c, "c2_chacha::XChaCha8, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::XChaCha12, blake3::Hasher>>(c, "c2_chacha::XChaCha12, blake3::Hasher>");
+    bench_aead::<AeadSiv<c2_chacha::XChaCha20, blake3::Hasher>>(c, "c2_chacha::XChaCha20, blake3::Hasher>");
 }
 
 criterion_group!(benches, bench);
