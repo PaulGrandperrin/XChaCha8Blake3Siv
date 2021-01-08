@@ -1,40 +1,14 @@
 use aead::{AeadInPlace, Key, NewAead, Nonce};
 use chacha20poly1305::{ChaChaPoly1305, XChaCha20Poly1305};
-use cipher::{NewStreamCipher, StreamCipher};
 use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use rand::Rng;
-use xchacha8blake3siv::AeadSiv;
-use typenum::{U32, Unsigned};
+use xchacha8blake3siv::{AeadSiv, Blake3StreamCipher};
+use typenum::Unsigned;
 
 const KB: usize = 1024;
 const MB: usize = 1024 * KB;
-
-struct Blake3StreamCipher {
-    xof: blake3::OutputReader
-}
-
-impl NewStreamCipher for Blake3StreamCipher {
-    type KeySize = U32;
-    type NonceSize = U32;
-
-    fn new(key: &c2_chacha::stream_cipher::Key<Self>, nonce: &c2_chacha::stream_cipher::Nonce<Self>) -> Self {
-        Self {
-            xof: blake3::Hasher::new_keyed(key.as_ref()).update(nonce).finalize_xof()
-        }
-    }
-}
-
-impl StreamCipher for Blake3StreamCipher {
-    fn encrypt(&mut self, data: &mut [u8]) {
-        self.xof.xor(data);
-    }
-
-    fn decrypt(&mut self, data: &mut [u8]) {
-        self.xof.xor(data);
-    }
-}
 
 fn bench_aead<A: NewAead + AeadInPlace>(c: &mut Criterion, name: &str) {
     let mut buffer = vec![0u8; MB];

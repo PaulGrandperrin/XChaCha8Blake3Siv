@@ -45,7 +45,7 @@ use std::{convert::TryInto, marker::PhantomData};
 use aead::{AeadInPlace, Error, NewAead, consts::{U0}, generic_array::GenericArray};
 use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, StreamCipher}};
 use crypto_mac::{Mac, NewMac};
-use typenum::Unsigned;
+use typenum::{U32, Unsigned};
 use zeroize::Zeroize;
 
 pub type XChaCha8Blake3Siv = AeadSiv<XChaCha8, blake3::Hasher>;
@@ -112,6 +112,31 @@ impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv
 impl<C: NewStreamCipher, M> Drop for AeadSiv<C, M> {
     fn drop(&mut self) {
         self.key.as_mut_slice().zeroize();
+    }
+}
+
+pub struct Blake3StreamCipher {
+    xof: blake3::OutputReader
+}
+
+impl NewStreamCipher for Blake3StreamCipher {
+    type KeySize = U32;
+    type NonceSize = U32;
+
+    fn new(key: &c2_chacha::stream_cipher::Key<Self>, nonce: &c2_chacha::stream_cipher::Nonce<Self>) -> Self {
+        Self {
+            xof: blake3::Hasher::new_keyed(key.as_ref()).update(nonce).finalize_xof()
+        }
+    }
+}
+
+impl StreamCipher for Blake3StreamCipher {
+    fn encrypt(&mut self, data: &mut [u8]) {
+        self.xof.xor(data);
+    }
+
+    fn decrypt(&mut self, data: &mut [u8]) {
+        self.xof.xor(data);
     }
 }
 
