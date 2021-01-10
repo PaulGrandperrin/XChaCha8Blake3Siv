@@ -77,11 +77,11 @@ impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv
     ) -> Result<GenericArray<u8, Self::TagSize>, Error> {
         let mut hasher = <M as NewMac>::new(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
-        hasher.update(&(associated_data.len() as u64).to_le_bytes());
+        hasher.update(&(associated_data.len() as u64).to_le_bytes()); // little-endian
         hasher.update(associated_data);
         hasher.update(buffer);
-        let tag: GenericArray<_,_> = hasher.finalize().into_bytes(); // consumes the Hash to avoid copying
-        let siv= tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
+        let tag  = hasher.finalize().into_bytes(); // consumes the Hash to avoid copying
+        let siv = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
         <C as NewStreamCipher>::new(&self.key,siv).encrypt(buffer);
         Ok(tag)
     }
@@ -93,15 +93,15 @@ impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv
         buffer: &mut [u8],
         tag: &GenericArray<u8, Self::TagSize>,
     ) -> Result<(), Error> {
-        let siv = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
+        let siv  = tag[0..Self::NonceSize::USIZE].into(); // constructs a reference to avoid copying
         <C as NewStreamCipher>::new(&self.key,siv).decrypt(buffer);
         let mut hasher = <M as NewMac>::new(self.key.as_slice().try_into().unwrap());
         hasher.update(nonce);
-        hasher.update(&(associated_data.len() as u64).to_le_bytes());
+        hasher.update(&(associated_data.len() as u64).to_le_bytes()); // little-endian
         hasher.update(associated_data);
         hasher.update(buffer);
-        let hash = hasher.finalize().into_bytes();
-        if subtle::ConstantTimeEq::ct_eq(hash.as_slice(), tag).unwrap_u8() == 1 { // constant time to avoid timing attack
+        let mac = hasher.finalize().into_bytes();
+        if subtle::ConstantTimeEq::ct_eq(mac.as_slice(), tag).unwrap_u8() == 1 { // constant time to avoid timing attack
             Ok(())
         } else {
             Err(Error)
