@@ -19,6 +19,12 @@ cipher = "0.2"
 rand = "0.8"
 criterion = { version = '0.3', features=['real_blackbox'] } # nightly only
 chacha20poly1305 = "0.7" # to compare against chacha20poly1305
+cmac = "0.5"
+pmac = "0.5"
+ctr = "0.6"
+aes-gcm-siv = "0.9"
+aes-siv = "0.5"
+aes = "0.6"
 
 [[bench]]
 name = "bench"
