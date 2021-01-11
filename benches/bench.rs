@@ -1,5 +1,5 @@
 use aead::{AeadInPlace, Key, NewAead, Nonce};
-use aes::{Aes128, Aes256};
+use aesni::{Aes128, Aes256};
 use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 use aes_siv::{Aes128SivAead, Aes256SivAead};
 use chacha20poly1305::{ChaChaPoly1305, XChaCha20Poly1305};

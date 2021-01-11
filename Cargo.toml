@@ -24,7 +24,7 @@ pmac = "0.5"
 ctr = "0.6"
 aes-gcm-siv = "0.9"
 aes-siv = "0.5"
-aes = "0.6"
+aesni = "0.10"
 
 [[bench]]
 name = "bench"

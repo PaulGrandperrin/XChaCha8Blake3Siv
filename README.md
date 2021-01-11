@@ -1,7 +1,7 @@
 
 
 ```sh
-RUSTFLAGS="-Ctarget-cpu=native" cargo bench --bench bench -- --sample-size 1000 --measurement-time 5 --warm-up-time 1
+RUSTFLAGS="-Ctarget-cpu=native -Ctarget-feature=+aes,+ssse3" cargo bench --bench bench -- --sample-size 1000 --measurement-time 5 --warm-up-time 1
 critcmp new -g '\w+/(.+)$'
 ```
 
