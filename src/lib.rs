@@ -42,7 +42,7 @@ fn decrypt(key:256, iv:192, tag:256, ad:*, ciphertext:*)
 */
 
 use std::{convert::TryInto, marker::PhantomData};
-use aead::{AeadInPlace, Error, NewAead, consts::{U0}, generic_array::GenericArray};
+use aead::{AeadCore, AeadInPlace, Error, NewAead, consts::{U0}, generic_array::GenericArray};
 use c2_chacha::{XChaCha8, stream_cipher::{NewStreamCipher, StreamCipher}};
 use crypto_mac::{Mac, NewMac};
 use typenum::{U32, Unsigned};
@@ -64,11 +64,13 @@ where GenericArray<u8, <C as NewStreamCipher>::KeySize>: Copy {
     }
 }
 
-impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv<C, M> {
+impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadCore for AeadSiv<C, M> {
     type NonceSize = <C as NewStreamCipher>::NonceSize;
     type TagSize = <M as Mac>::OutputSize;
     type CiphertextOverhead = U0;
+}
 
+impl<C: NewStreamCipher + StreamCipher, M: NewMac + Mac> AeadInPlace for AeadSiv<C, M> {
     fn encrypt_in_place_detached(
         &self,
         nonce: &GenericArray<u8, <C as NewStreamCipher>::NonceSize>,
@@ -149,7 +151,7 @@ mod tests {
     fn it_works() {
         let key = Key::<XChaCha8Blake3Siv>::from_slice(b"an example very very secret key."); // 32-bytes
         let cipher = XChaCha8Blake3Siv::new(key);
-        let nonce = Nonce::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
+        let nonce = Nonce::<XChaCha8Blake3Siv>::from_slice(b"extra long unique nonce!"); // 24-bytes; unique per message
         let mut buffer = b"plaintext message".to_owned();
 
         let tag = cipher.encrypt_in_place_detached(nonce, b"associated data", &mut buffer)

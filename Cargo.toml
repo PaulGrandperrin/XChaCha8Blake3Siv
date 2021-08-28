@@ -5,26 +5,26 @@ authors = ["Paul Grandperrin <paul.grandperrin@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-c2-chacha = { git = "https://github.com/PaulGrandperrin/cryptocorrosion.git"} # added 8 and 12 round versions
+c2-chacha = "0.3"
 # chacha20 = {git = "https://github.com/RustCrypto/stream-ciphers.git"} # added 8 and 12 round versions
-blake3 = { git = "https://github.com/PaulGrandperrin/BLAKE3.git" }
-aead = "0.3"
+blake3 = { git = "https://github.com/PaulGrandperrin/BLAKE3.git", features = ["traits-preview"] }
+aead = "0.4"
 zeroize = "1"
 typenum = "1"
-crypto-mac = "0.10"
+crypto-mac = "0.11"
 subtle = "2"
-cipher = "0.2"
+cipher = "0.3"
 
 [dev-dependencies]
 rand = "0.8"
 criterion = { version = '0.3', features=['real_blackbox'] } # nightly only
-chacha20poly1305 = "0.7" # to compare against chacha20poly1305
-cmac = "0.5"
-pmac = "0.5"
-ctr = "0.6"
-aes-gcm-siv = "0.9"
-aes-siv = "0.5"
-aesni = "0.10"
+chacha20poly1305 = "0.8" # to compare against chacha20poly1305
+cmac = "0.6"
+pmac = "0.6"
+ctr = "0.8"
+aes-gcm-siv = "0.10"
+aes-siv = "0.6"
+aes = "0.7"
 
 [[bench]]
 name = "bench"

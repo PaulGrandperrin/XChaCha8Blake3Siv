@@ -1,5 +1,5 @@
-use aead::{AeadInPlace, Key, NewAead, Nonce};
-use aesni::{Aes128, Aes256};
+use aead::{AeadCore, AeadInPlace, Key, NewAead, Nonce};
+use aes::{Aes128, Aes256};
 use aes_gcm_siv::{Aes128GcmSiv, Aes256GcmSiv};
 use aes_siv::{Aes128SivAead, Aes256SivAead};
 use chacha20poly1305::{ChaChaPoly1305, XChaCha20Poly1305};
@@ -7,7 +7,7 @@ use cmac::Cmac;
 use criterion::{BenchmarkId, Throughput};
 use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
-use ctr::Ctr128;
+use ctr::Ctr128BE; // maybe LE?
 use pmac::Pmac;
 use rand::Rng;
 use xchacha8blake3siv::{AeadSiv, Blake3StreamCipher};
@@ -21,7 +21,7 @@ fn bench_aead<A: NewAead + AeadInPlace>(c: &mut Criterion, name: &str) {
     rand::thread_rng().fill(&mut buffer[..]);
 
     let key = Key::<A>::clone_from_slice(&buffer[0..<A as NewAead>::KeySize::USIZE]);
-    let nonce = Nonce::clone_from_slice(&buffer[0..<A as AeadInPlace>::NonceSize::USIZE]);
+    let nonce = Nonce::<A>::clone_from_slice(&buffer[0..<A as AeadCore>::NonceSize::USIZE]);
     let associated_data = b"";
     let aead = <A as NewAead>::new(&key);
 
@@ -43,20 +43,20 @@ fn bench_aead<A: NewAead + AeadInPlace>(c: &mut Criterion, name: &str) {
 
 fn bench(c: &mut Criterion) {
     bench_aead::<XChaCha20Poly1305>(c, "XChaCha20Poly1305");
-    bench_aead::<ChaChaPoly1305<c2_chacha::Ietf>>(c, "ChaChaPoly1305<c2_chacha::Ietf>");
+    //bench_aead::<ChaChaPoly1305<c2_chacha::Ietf>>(c, "ChaChaPoly1305<c2_chacha::Ietf>");
 
     bench_aead::<Aes128GcmSiv>(c, "Aes128GcmSiv");
     bench_aead::<Aes256GcmSiv>(c, "Aes256GcmSiv");
     bench_aead::<Aes128SivAead>(c, "Aes128SivAead");
     bench_aead::<Aes256SivAead>(c, "Aes256SivAead");
 
-    bench_aead::<AeadSiv<Ctr128<Aes128>, Cmac<Aes128>>>(c, "AeadSiv<Ctr128<Aes128>, Cmac<Aes128>>");
-    bench_aead::<AeadSiv<Ctr128<Aes256>, Cmac<Aes256>>>(c, "AeadSiv<Ctr128<Aes256>, Cmac<Aes256>>");
+    //bench_aead::<AeadSiv<Ctr128BE<Aes128>, Cmac<Aes128>>>(c, "AeadSiv<Ctr128BE<Aes128>, Cmac<Aes128>>");
+    //bench_aead::<AeadSiv<Ctr128BE<Aes256>, Cmac<Aes256>>>(c, "AeadSiv<Ctr128BE<Aes256>, Cmac<Aes256>>");
 
-    bench_aead::<AeadSiv<Ctr128<Aes128>, Pmac<Aes128>>>(c, "AeadSiv<Ctr128<Aes128>, Pmac<Aes128>>");
-    bench_aead::<AeadSiv<Ctr128<Aes256>, Pmac<Aes256>>>(c, "AeadSiv<Ctr128<Aes256>, Pmac<Aes256>>");
+    //bench_aead::<AeadSiv<Ctr128BE<Aes128>, Pmac<Aes128>>>(c, "AeadSiv<Ctr128BE<Aes128>, Pmac<Aes128>>");
+    //bench_aead::<AeadSiv<Ctr128BE<Aes256>, Pmac<Aes256>>>(c, "AeadSiv<Ctr128BE<Aes256>, Pmac<Aes256>>");
 
-    bench_aead::<AeadSiv<Ctr128<Aes256>, blake3::Hasher>>(c, "AeadSiv<Ctr128<Aes256>, blake3::Hasher>");
+    //bench_aead::<AeadSiv<Ctr128BE<Aes256>, blake3::Hasher>>(c, "AeadSiv<Ctr128BE<Aes256>, blake3::Hasher>");
 
     bench_aead::<AeadSiv<c2_chacha::Ietf, blake3::Hasher>>(c, "AeadSiv<c2_chacha::Ietf, blake3::Hasher>");
     bench_aead::<AeadSiv<c2_chacha::ChaCha8, blake3::Hasher>>(c, "AeadSiv<c2_chacha::ChaCha8, blake3::Hasher>");
